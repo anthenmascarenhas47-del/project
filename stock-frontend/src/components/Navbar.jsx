@@ -46,17 +46,15 @@ export default function Navbar() {
       const data = await getIndices();
       setIndices(data || []);
     } catch (err) {
-      console.error("Failed to fetch indices:", err);
+      console.error(err);
     }
   };
 
   useEffect(() => {
     checkStatus();
     fetchIndices();
-
     const statusTimer = setInterval(checkStatus, 60000);
     const dataTimer = setInterval(fetchIndices, 60000);
-
     return () => {
       clearInterval(statusTimer);
       clearInterval(dataTimer);
@@ -65,152 +63,80 @@ export default function Navbar() {
 
   return (
     <>
-      <nav className="bg-slate-900 border-b border-slate-800 sticky top-0 z-50 shadow-2xl">
-
-        {/* ================= TOP ROW ================= */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-
-            {/* Logo */}
-            <div className="flex items-center gap-3 group cursor-pointer">
-              <span
-                className="text-xl font-extrabold tracking-wide 
-                bg-gradient-to-r from-blue-400 via-indigo-400 to-purple-400 
-                bg-clip-text text-transparent 
-                drop-shadow-[0_0_6px_rgba(99,102,241,0.35)]
-                transition-all duration-300
-                group-hover:tracking-widest
-                group-hover:drop-shadow-[0_0_10px_rgba(99,102,241,0.6)]
-                hidden sm:block"
-              >
-                SignalX
-              </span>
+      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-2xl bg-emerald-950/20 border-b border-emerald-500/20 shadow-[0_8px_32px_0_rgba(0,0,0,0.8)]">
+        <div className="max-w-7xl mx-auto px-6">
+          <div className="flex justify-between items-center h-20">
+            <div className="text-3xl font-black tracking-tighter bg-gradient-to-r from-emerald-400 via-cyan-400 to-emerald-300 bg-clip-text text-transparent drop-shadow-[0_0_15px_rgba(52,211,153,0.3)]">
+              SignalX
             </div>
 
-            {/* Links */}
-            <div className="hidden md:flex gap-8 text-sm font-medium text-slate-400">
-              <NavLink
-                to="/market"
-                className={({ isActive }) =>
-                  isActive
-                    ? "text-white"
-                    : "hover:text-blue-400 transition-colors"
-                }
-              >
+            <div className="hidden md:flex gap-10 text-sm font-bold uppercase tracking-widest text-slate-400/80">
+              <NavLink to="/market" className={({isActive}) => isActive ? "text-emerald-400 transition-all border-b-2 border-emerald-400 pb-1" : "hover:text-emerald-400 transition-all pb-1"}>
                 Market
               </NavLink>
-
-              <NavLink
-                to="/watchlist"
-                className={({ isActive }) =>
-                  isActive
-                    ? "text-white"
-                    : "hover:text-blue-400 transition-colors"
-                }
-              >
+              <NavLink to="/watchlist" className={({isActive}) => isActive ? "text-emerald-400 transition-all border-b-2 border-emerald-400 pb-1" : "hover:text-emerald-400 transition-all pb-1"}>
                 Watchlist
               </NavLink>
-
-              <NavLink
-                to="/"
-                end
-                className={({ isActive }) =>
-                  isActive
-                    ? "text-white"
-                    : "hover:text-blue-400 transition-colors"
-                }
-              >
+              <NavLink to="/" end className={({isActive}) => isActive ? "text-emerald-400 transition-all border-b-2 border-emerald-400 pb-1" : "hover:text-emerald-400 transition-all pb-1"}>
                 Portfolio
               </NavLink>
             </div>
 
-            {/* Right Controls */}
-            <div className="flex items-center gap-4">
-
-              {/* Chatbot Button */}
+            <div className="flex items-center gap-6">
               <button
                 onClick={() => setShowChat(true)}
-                className="p-2 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700 transition"
-                title="Open AI Assistant"
+                className="p-3 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/25 border border-emerald-500/20 transition-all active:scale-90"
               >
-                <MessageCircle size={18} />
+                <MessageCircle size={20} className="text-emerald-400" />
               </button>
 
-              {/* Market Status */}
               <div className="flex items-center gap-2">
-                <span className="text-xs font-semibold text-slate-500 hidden sm:block">
-                  MARKET
-                </span>
-                <span
-                  className={`text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider border
-                  ${
-                    status === "Live"
-                      ? "text-green-400 border-green-900 bg-green-900/20 animate-pulse"
-                      : status === "Pre-Open"
-                      ? "text-yellow-400 border-yellow-900 bg-yellow-900/20"
-                      : "text-red-400 border-red-900 bg-red-900/20"
-                  }`}
-                >
-                  {status}
-                </span>
+                 <div className={`w-2 h-2 rounded-full ${status === "Live" ? "bg-emerald-500 animate-ping" : "bg-rose-500"}`} />
+                 <span
+                   className={`text-[10px] font-black px-4 py-1.5 rounded-lg uppercase tracking-[0.2em] border ${
+                     status === "Live"
+                       ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                       : status === "Pre-Open"
+                       ? "bg-yellow-500/10 text-yellow-400 border-yellow-500/30"
+                       : "bg-rose-500/10 text-rose-400 border-rose-500/30"
+                   }`}
+                 >
+                   {status}
+                 </span>
               </div>
             </div>
           </div>
         </div>
 
-        {/* ================= INDICES TICKER ================= */}
-        <div className="bg-slate-950/50 border-t border-slate-800 backdrop-blur-sm">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-center h-10 gap-6 sm:gap-12 overflow-x-auto no-scrollbar">
-
-              {indices.length === 0 && (
-                <span className="text-xs text-slate-600 animate-pulse">
-                  Loading Market Indices...
+        {/* 📉 UPDATED TICKER BAR (CENTERED) */}
+        <div className="border-t border-emerald-500/10 bg-black/40 backdrop-blur-md">
+          <div className="max-w-7xl mx-auto px-6 py-2 flex justify-center gap-8">
+            {indices.map((idx) => (
+              <div
+                key={idx.name}
+                className="flex items-center whitespace-nowrap px-4 py-1 rounded-full bg-white/5 border border-white/5 hover:border-emerald-500/30 transition-all cursor-default"
+              >
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tighter">
+                  {idx.name}
                 </span>
-              )}
-
-              {indices.map((idx) => (
-                <div
-                  key={idx.name}
-                  className="flex items-center gap-2 whitespace-nowrap px-4 py-1.5 rounded-xl 
-                  bg-slate-900/60 border border-slate-800 
-                  transition-all duration-300 
-                  hover:scale-105 hover:border-blue-500/40
-                  hover:shadow-[0_0_15px_rgba(59,130,246,0.25)]
-                  hover:bg-slate-800/70 cursor-pointer"
-                >
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                    {idx.name}
-                  </span>
-
-                  <span
-                    className={`text-sm font-mono font-semibold ${
-                      idx.change >= 0 ? "text-green-400" : "text-red-400"
-                    }`}
-                  >
-                    {idx.price.toLocaleString("en-IN", {
-                      maximumFractionDigits: 2,
-                    })}
-                  </span>
-
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                      idx.change >= 0
-                        ? "bg-green-500/10 text-green-400"
-                        : "bg-red-500/10 text-red-400"
-                    }`}
-                  >
-                    {idx.change >= 0 ? "+" : ""}
-                    {idx.percent.toFixed(2)}%
-                  </span>
-                </div>
-              ))}
-            </div>
+                <span className={`ml-3 font-mono text-sm font-bold ${
+                  idx.change >= 0 ? "text-emerald-400" : "text-rose-400"
+                }`}>
+                  {idx.price.toLocaleString("en-IN", {
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+                <span className={`ml-2 text-[10px] font-bold ${
+                  idx.change >= 0 ? "text-emerald-500/80" : "text-rose-500/80"
+                }`}>
+                  {idx.change >= 0 ? "▲" : "▼"} {idx.percent.toFixed(2)}%
+                </span>
+              </div>
+            ))}
           </div>
         </div>
       </nav>
 
-      {/* Chatbot popup outside nav for proper overlay */}
       {showChat && <ChatBot onClose={() => setShowChat(false)} />}
     </>
   );

@@ -3,6 +3,19 @@ import { useEffect, useState } from "react";
 import Navbar from "../components/Navbar";
 import CandleChart from "../components/CandleChart";
 import { getCompany, getAnalysis } from "../api/api";
+import { motion } from "framer-motion";
+
+// --- High-Intensity Particle Configuration (copied from Dashboard) ---
+const PARTICLE_COUNT = 100;
+const particles = Array.from({ length: PARTICLE_COUNT }).map((_, i) => ({
+  id: i,
+  size: Math.random() * 4 + 1,
+  x: Math.random() * 100,
+  y: Math.random() * 100,
+  duration: Math.random() * 8 + 4,
+  delay: Math.random() * 10,
+  glow: Math.random() > 0.5 ? "0 0 12px #10b981" : "0 0 4px #34d399",
+}));
 
 export default function Stock() {
   const { symbol } = useParams();
@@ -78,17 +91,62 @@ export default function Stock() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-slate-200">
+    <div className="min-h-screen text-white relative overflow-x-auto bg-[#061614]">
+      {/* BACKGROUND EFFECTS: Particles & Glows (copied from Dashboard) */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        {particles.map((p) => (
+          <motion.div
+            key={p.id}
+            className="absolute bg-emerald-400 rounded-full"
+            style={{
+              width: p.size,
+              height: p.size,
+              left: `${p.x}%`,
+              top: `${p.y}%`,
+              boxShadow: p.glow,
+            }}
+            animate={{
+              x: [0, Math.random() * 200 - 100, 0],
+              y: [0, Math.random() * 200 - 100, 0],
+              opacity: [0.2, 0.7, 0.2],
+              scale: [1, 1.5, 1],
+            }}
+            transition={{
+              duration: p.duration,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: p.delay,
+            }}
+          />
+        ))}
+        {/* Pulsing Radial Glows */}
+        <motion.div 
+          animate={{ scale: [1, 1.3, 1], opacity: [0.15, 0.25, 0.15] }}
+          transition={{ duration: 8, repeat: Infinity }}
+          className="absolute top-[-15%] left-[-10%] w-[70%] h-[70%] bg-emerald-600 blur-[140px] rounded-full" 
+        />
+        <motion.div 
+          animate={{ scale: [1.2, 1, 1.2], opacity: [0.1, 0.2, 0.1] }}
+          transition={{ duration: 12, repeat: Infinity }}
+          className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-cyan-600 blur-[140px] rounded-full" 
+        />
+        {/* Animated Green Grid */}
+        <div className="absolute inset-0 opacity-[0.1]" style={{ 
+          backgroundImage: `linear-gradient(#10b981 1px, transparent 1px), linear-gradient(90deg, #10b981 1px, transparent 1px)`,
+          backgroundSize: '50px 50px' 
+        }} />
+      </div>
+
       <Navbar />
 
-      <div className="max-w-7xl mx-auto p-6 space-y-6">
+      <div className="max-w-7xl mx-auto p-6 pt-32 space-y-6 relative z-10">
         <div className="grid grid-cols-3 items-center">
           <div>
             <h1 className="text-2xl font-bold">{company?.name}</h1>
             <p className="text-slate-400">{symbol}</p>
           </div>
 
-          <div className="flex justify-center gap-4">
+          <div className="flex justify-center gap-4 mt-16">
             <button
               onClick={handleBuy}
               className="bg-green-600 px-5 py-2 rounded font-semibold hover:bg-green-700"
@@ -117,7 +175,7 @@ export default function Stock() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="bg-slate-800 rounded-xl p-4 border border-slate-700">
+          <div className="rounded-3xl p-8 bg-black/40 border border-emerald-500/30 backdrop-blur-3xl">
             <h2 className="text-lg font-bold mb-3">AI Analysis <span className="text-sm text-slate-400 ml-2">({selectedInterval})</span></h2>
 
             {!analysis && <p>Loading…</p>}
@@ -171,12 +229,12 @@ export default function Stock() {
             )}
           </div>
 
-          <div className="lg:col-span-2 bg-slate-800 rounded-xl p-4 border border-slate-700">
+          <div className="lg:col-span-2 rounded-3xl p-8 bg-black/70 border border-emerald-500/40 backdrop-blur-2xl">
             <CandleChart symbol={symbol} selectedInterval={selectedInterval} onIntervalChange={setSelectedInterval} />
           </div>
         </div>
 
-        <div className="bg-slate-800 rounded-xl p-6 border border-slate-700">
+        <div className="rounded-3xl p-8 bg-black/40 border border-emerald-500/30 backdrop-blur-3xl">
           <h2 className="text-lg font-bold mb-3">Company Details</h2>
 
           {!company && <p>Loading…</p>}
@@ -203,7 +261,7 @@ export default function Stock() {
       {/* ----------- MODAL (fixed, high z-index) ----------- */}
       {showModal && (
         <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center">
-          <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 w-96 space-y-4 shadow-2xl">
+          <div className="bg-black/90 p-6 rounded-3xl border border-emerald-500/30 w-96 space-y-4 shadow-2xl backdrop-blur-2xl">
             <h2 className="text-xl font-bold">
               {tradeType === "BUY" ? "Buy" : "Sell"} {symbol}
             </h2>

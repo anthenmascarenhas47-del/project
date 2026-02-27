@@ -1,265 +1,341 @@
 import { useState, useEffect, useMemo } from "react";
 import Navbar from "../components/Navbar";
-import { getMarket, getAnalysis } from "../api/api"; 
+import { getMarket } from "../api/api";
+import { motion, AnimatePresence } from "framer-motion";
+import { Link } from "react-router-dom";
+import { BarChart3, ArrowUpRight, X } from "lucide-react";
+
+// --- High-Intensity Particle Configuration ---
+const PARTICLE_COUNT = 100;
+const particles = Array.from({ length: PARTICLE_COUNT }).map((_, i) => ({
+  id: i,
+  size: Math.random() * 4 + 1,
+  x: Math.random() * 100,
+  y: Math.random() * 100,
+  duration: Math.random() * 8 + 4, 
+  delay: Math.random() * 10,
+  glow: Math.random() > 0.5 ? "0 0 12px #10b981" : "0 0 4px #34d399",
+}));
+
+const Sparkline = ({ isProfit }) => {
+  const points = [10, 15, 8, 22, 18, 25, 12, 30]; 
+  return (
+    <svg className="w-24 h-10 overflow-visible">
+      <motion.polyline
+        fill="none"
+        stroke={isProfit ? "#10b981" : "#ef4444"}
+        strokeWidth="2"
+        strokeLinecap="round"
+        points={points.map((p, i) => `${(i * 12)}, ${35 - p}`).join(" ")}
+        initial={{ pathLength: 0 }}
+        animate={{ pathLength: 1 }}
+        transition={{ duration: 2, repeat: Infinity, repeatType: "reverse" }}
+      />
+    </svg>
+  );
+};
 
 export default function Dashboard() {
   const [portfolio, setPortfolio] = useState([]);
-  const [marketData, setMarketData] = useState({}); // Map of Symbol -> { name, price }
-  const [loading, setLoading] = useState(true);
+  const [marketData, setMarketData] = useState({});
+  
+  // Modal States
+  const [modalConfig, setModalConfig] = useState(null); // { type: 'Buy' | 'Sell', symbol: string, price: number }
+  const [tradeQuantity, setTradeQuantity] = useState(1);
 
-  // Modal State
-  const [showModal, setShowModal] = useState(false);
-  const [tradeType, setTradeType] = useState("BUY");
-  const [selectedStock, setSelectedStock] = useState(null);
-  const [quantity, setQuantity] = useState(1);
-  const [tradePrice, setTradePrice] = useState(0); 
-
-  // 1. Load Portfolio & Fetch Market Data for Names/Prices
   useEffect(() => {
     const saved = JSON.parse(localStorage.getItem("portfolio") || "[]");
     setPortfolio(saved);
 
-    // Fetch all market data to get Real Names and Current Prices
-    getMarket()
-      .then((data) => {
-        const map = {};
-        data.forEach((item) => {
-          map[item.symbol] = { name: item.name, price: item.price };
-        });
-        setMarketData(map);
-        setLoading(false);
-      })
-      .catch((err) => {
-        console.error("Failed to load market data", err);
-        setLoading(false);
+    getMarket().then((data) => {
+      const map = {};
+      data.forEach((item) => {
+        map[item.symbol] = item;
       });
+      setMarketData(map);
+    });
   }, []);
 
-  // 2. Calculate Totals
-  const { totalInvested, currentValue, totalPL } = useMemo(() => {
+  const { totalInvested, currentValue } = useMemo(() => {
     let invested = 0;
     let current = 0;
-
     portfolio.forEach((p) => {
-      const qty = p.quantity;
-      const buyPrice = parseFloat(p.price);
-      const livePrice = marketData[p.symbol]?.price || buyPrice; // Fallback to buy price if loading
-
-      invested += qty * buyPrice;
-      current += qty * livePrice;
+      const buy = parseFloat(p.price);
+      const live = marketData[p.symbol]?.price || buy;
+      invested += p.quantity * buy;
+      current += p.quantity * live;
     });
-
-    return {
-      totalInvested: invested,
-      currentValue: current,
-      totalPL: current - invested,
-    };
+    return { totalInvested: invested, currentValue: current };
   }, [portfolio, marketData]);
 
-  // 3. Trade Logic
-  const openTradeModal = async (p, type) => {
-    setTradeType(type);
-    setSelectedStock(p);
-    setQuantity(1);
-    setShowModal(true);
-    setTradePrice(0); 
+  const performancePercent = totalInvested > 0 ? (currentValue / totalInvested) * 100 : 0;
 
-    try {
-      const analysis = await getAnalysis(p.symbol);
-      setTradePrice(analysis.price);
-    } catch {
-      setTradePrice(marketData[p.symbol]?.price || 0);
-    }
-  };
+  // Handlers for the Modal Actions
+  const handleTradeSubmit = () => {
+    if (!modalConfig || tradeQuantity <= 0) return;
 
-  const handleConfirmTrade = () => {
-    if (!selectedStock || tradePrice === 0) return;
-
-    let newPortfolio = [...portfolio];
-    const existingIndex = newPortfolio.findIndex((p) => p.symbol === selectedStock.symbol);
-
-    if (existingIndex === -1) return;
-
-    const existing = newPortfolio[existingIndex];
-
-    if (tradeType === "BUY") {
-      const totalCost = (existing.quantity * parseFloat(existing.price)) + (quantity * tradePrice);
-      const newQty = existing.quantity + quantity;
-      existing.quantity = newQty;
-      existing.price = (totalCost / newQty).toFixed(2);
-    } 
-    else if (tradeType === "SELL") {
-      if (existing.quantity < quantity) {
-        alert("Not enough shares!");
-        return;
-      }
-      existing.quantity -= quantity;
+    let updated;
+    if (modalConfig.type === "Buy") {
+      updated = portfolio.map((p) =>
+        p.symbol === modalConfig.symbol ? { ...p, quantity: p.quantity + Number(tradeQuantity) } : p
+      );
+    } else {
+      updated = portfolio.map((p) =>
+        p.symbol === modalConfig.symbol 
+          ? { ...p, quantity: Math.max(0, p.quantity - Number(tradeQuantity)) } 
+          : p
+      );
     }
 
-    if (existing.quantity <= 0) {
-      newPortfolio = newPortfolio.filter(p => p.symbol !== selectedStock.symbol);
-    }
-
-    localStorage.setItem("portfolio", JSON.stringify(newPortfolio));
-    setPortfolio(newPortfolio);
-    setShowModal(false);
+    setPortfolio(updated);
+    localStorage.setItem("portfolio", JSON.stringify(updated));
+    setModalConfig(null);
+    setTradeQuantity(1);
   };
 
   return (
-    <div className="min-h-screen bg-[#0f172a] text-slate-200">
-      <Navbar />
-      <div className="max-w-6xl mx-auto p-6">
-        
-        {/* -------- PORTFOLIO SUMMARY CARD -------- */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-                <div className="text-slate-400 text-sm font-semibold">Current Value</div>
-                <div className="text-3xl font-bold text-white">
-                    {loading ? "..." : `₹${currentValue.toFixed(2)}`}
+    <div className="min-h-screen text-white relative overflow-x-hidden bg-[#061614]">
+      
+      {/* MODAL OVERLAY */}
+      <AnimatePresence>
+        {modalConfig && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 backdrop-blur-md bg-black/40">
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-md bg-[#0a1a18] border border-white/10 rounded-[2rem] p-8 shadow-2xl relative"
+            >
+              <h2 className="text-2xl font-black mb-6">
+                {modalConfig.type} <span className="text-emerald-400">{modalConfig.symbol}</span>
+              </h2>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-white/40 tracking-widest mb-2 block">Quantity</label>
+                  <input 
+                    type="number"
+                    value={tradeQuantity}
+                    onChange={(e) => setTradeQuantity(e.target.value)}
+                    className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-xl font-bold focus:outline-none focus:border-emerald-500/50 transition-all"
+                  />
                 </div>
-            </div>
-            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-                <div className="text-slate-400 text-sm font-semibold">Total Invested</div>
-                <div className="text-3xl font-bold text-slate-200">
-                   ₹{totalInvested.toFixed(2)}
-                </div>
-            </div>
-            <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-                <div className="text-slate-400 text-sm font-semibold">Total P/L</div>
-                <div className={`text-3xl font-bold ${totalPL >= 0 ? "text-green-400" : "text-red-400"}`}>
-                   {totalPL >= 0 ? "+" : ""}₹{totalPL.toFixed(2)}
-                </div>
-            </div>
-        </div>
-
-        <h2 className="text-xl font-bold mb-4">Your Holdings</h2>
-
-        {portfolio.length === 0 && !loading && (
-          <div className="text-slate-500 text-center py-10 bg-slate-900 rounded-xl border border-slate-800">
-            You don't own any stocks yet.
-          </div>
-        )}
-
-        <div className="grid gap-3">
-          {portfolio.map((p) => {
-            const liveData = marketData[p.symbol] || {};
-            const livePrice = liveData.price || 0;
-            const name = liveData.name || p.symbol; // Use name if found, else symbol
-            
-            // Calculate individual stock P/L
-            const gain = (livePrice - p.price) * p.quantity;
-            const isProfit = gain >= 0;
-
-            return (
-              <div
-                key={p.symbol}
-                className="group relative p-5 bg-slate-800 rounded-xl border border-slate-700 flex flex-col sm:flex-row justify-between items-center transition-all hover:bg-slate-750 hover:border-slate-600 gap-4"
-              >
-                {/* LEFT: Name & Symbol */}
-                <div className="flex-1">
-                  <a href={`/stock/${p.symbol}`} className="text-lg font-bold hover:underline block">
-                    {name}
-                  </a>
-                  <div className="text-slate-400 text-xs font-mono bg-slate-900 px-2 py-0.5 rounded w-fit mt-1">
-                    {p.symbol}
-                  </div>
+                
+                <div className="py-2">
+                  <p className="text-white/60 font-medium">Price: <span className="text-white font-bold ml-2">₹{modalConfig.price.toLocaleString("en-IN")}</span></p>
                 </div>
 
-                {/* MIDDLE: Stats */}
-                <div className="flex gap-8 text-sm text-right">
-                    <div>
-                        <div className="text-slate-400">Qty</div>
-                        <div className="font-semibold">{p.quantity}</div>
-                    </div>
-                    <div>
-                        <div className="text-slate-400">Avg</div>
-                        <div className="font-semibold">₹{p.price}</div>
-                    </div>
-                    <div>
-                         <div className="text-slate-400">LTP</div>
-                         <div className={`font-semibold ${loading ? "animate-pulse" : ""}`}>
-                            ₹{livePrice.toFixed(2)}
-                         </div>
-                    </div>
-                    <div className="min-w-[80px]">
-                         <div className="text-slate-400">P/L</div>
-                         <div className={`font-bold ${isProfit ? "text-green-400" : "text-red-400"}`}>
-                            {isProfit ? "+" : ""}₹{gain.toFixed(2)}
-                         </div>
-                    </div>
-                </div>
-
-                {/* RIGHT: Buttons (Hover Only) */}
-                <div className="flex items-center gap-2 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
-                  <button
-                    onClick={() => openTradeModal(p, "BUY")}
-                    className="px-4 py-1.5 bg-green-600 text-sm font-bold rounded hover:bg-green-500 shadow-lg shadow-green-900/20"
+                <div className="flex gap-4 pt-4">
+                  <button 
+                    onClick={() => setModalConfig(null)}
+                    className="flex-1 px-6 py-4 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 font-black uppercase text-[10px] tracking-widest transition-all"
                   >
-                    Buy
+                    Cancel
                   </button>
-                  <button
-                    onClick={() => openTradeModal(p, "SELL")}
-                    className="px-4 py-1.5 bg-red-600 text-sm font-bold rounded hover:bg-red-500 shadow-lg shadow-red-900/20"
+                  <button 
+                    onClick={handleTradeSubmit}
+                    className={`flex-1 px-6 py-4 rounded-xl font-black uppercase text-[10px] tracking-widest transition-all ${
+                      modalConfig.type === 'Buy' 
+                        ? 'bg-emerald-500 text-black hover:bg-emerald-400' 
+                        : 'bg-red-500 text-white hover:bg-red-400'
+                    }`}
                   >
-                    Sell
+                    Confirm {modalConfig.type}
                   </button>
                 </div>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* BACKGROUND EFFECTS */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        {particles.map((p) => (
+          <motion.div
+            key={p.id}
+            className="absolute bg-emerald-400 rounded-full"
+            style={{
+              width: p.size,
+              height: p.size,
+              left: `${p.x}%`,
+              top: `${p.y}%`,
+              boxShadow: p.glow,
+            }}
+            animate={{
+              x: [0, Math.random() * 200 - 100, 0],
+              y: [0, Math.random() * 200 - 100, 0],
+              opacity: [0.2, 0.7, 0.2],
+              scale: [1, 1.5, 1],
+            }}
+            transition={{
+              duration: p.duration,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: p.delay,
+            }}
+          />
+        ))}
+
+        <motion.div 
+          animate={{ scale: [1, 1.3, 1], opacity: [0.15, 0.25, 0.15] }}
+          transition={{ duration: 8, repeat: Infinity }}
+          className="absolute top-[-15%] left-[-10%] w-[70%] h-[70%] bg-emerald-600 blur-[140px] rounded-full" 
+        />
+        <motion.div 
+          animate={{ scale: [1.2, 1, 1.2], opacity: [0.1, 0.2, 0.1] }}
+          transition={{ duration: 12, repeat: Infinity }}
+          className="absolute bottom-[-20%] right-[-10%] w-[60%] h-[60%] bg-cyan-600 blur-[140px] rounded-full" 
+        />
+        
+        <div className="absolute inset-0 opacity-[0.1]" style={{ 
+          backgroundImage: `linear-gradient(#10b981 1px, transparent 1px), linear-gradient(90deg, #10b981 1px, transparent 1px)`,
+          backgroundSize: '50px 50px' 
+        }} />
+      </div>
+
+      <Navbar />
+
+      <div className="max-w-7xl mx-auto px-6 pt-44 relative z-10 pb-20">
+        
+        {/* HEADER SECTION */}
+        <div className="flex justify-between items-end mb-12">
+          <motion.div initial={{ opacity: 0, x: -30 }} animate={{ opacity: 1, x: 0 }}>
+            <h1 className="text-6xl md:text-8xl font-black tracking-tighter leading-none uppercase">
+              MY <span className="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-emerald-200 drop-shadow-[0_0_30px_rgba(52,211,153,0.3)]">PORTFOLIO</span>
+            </h1>
+            <div className="flex items-center gap-4 mt-4">
+               <span className="h-[1px] w-12 bg-emerald-500/50"></span>
+               <p className="text-emerald-500/70 font-mono text-xs uppercase tracking-[0.4em]">Live Analytics Terminal</p>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* TOP METRIC CARDS */}
+        <div className="grid md:grid-cols-3 gap-6 mb-12">
+          <motion.div
+            className="col-span-2 rounded-3xl p-8 bg-black/40 border border-emerald-500/30 backdrop-blur-3xl relative overflow-hidden"
+          >
+            <p className="text-emerald-400/60 font-mono text-[10px] uppercase tracking-widest mb-2">Net Asset Valuation</p>
+            <h2 className="text-6xl font-black text-white tracking-tighter mb-6">
+              ₹{currentValue.toLocaleString("en-IN", { minimumFractionDigits: 2 })}
+            </h2>
+            <div className="flex items-end gap-2 h-12">
+              {[8, 18, 12, 24, 16, 28, 14, 32, 10, 18, 22, 14].map((h, i) => (
+                <motion.div 
+                  key={i} 
+                  initial={{ height: 0 }} 
+                  animate={{ height: `${h}px` }} 
+                  className="w-2 rounded-full bg-emerald-500/40" 
+                />
+              ))}
+            </div>
+          </motion.div>
+
+          <motion.div className="rounded-3xl p-8 bg-black/40 border border-emerald-500/30 backdrop-blur-3xl flex flex-col items-center justify-center">
+            <div className="relative w-32 h-32 flex items-center justify-center">
+              <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
+                <circle cx="18" cy="18" r="16" fill="none" stroke="rgba(16,185,129,0.1)" strokeWidth="3" />
+                <motion.circle 
+                  cx="18" cy="18" r="16" fill="none" stroke="#10b981" strokeWidth="3" 
+                  strokeDasharray="100" initial={{ strokeDashoffset: 100 }} 
+                  animate={{ strokeDashoffset: 100 - Math.min(performancePercent, 100) }}
+                  transition={{ duration: 2 }}
+                />
+              </svg>
+              <div className="absolute flex flex-col items-center">
+                <span className="text-2xl font-black tracking-tighter">{performancePercent.toFixed(0)}%</span>
+                <span className="text-[8px] uppercase opacity-50 font-bold">Return</span>
+              </div>
+            </div>
+            <p className="mt-4 text-[10px] font-black text-emerald-500 uppercase tracking-widest">Performance</p>
+          </motion.div>
+        </div>
+
+        {/* GLOSSY ASSET LIST */}
+        <div className="space-y-6">
+          {portfolio.map((p) => {
+            const buy = parseFloat(p.price);
+            const live = marketData[p.symbol]?.price || buy;
+            const invested = buy * p.quantity;
+            const current = live * p.quantity;
+            const gain = current - invested;
+            const percent = invested > 0 ? (gain / invested) * 100 : 0;
+            const isProfit = gain >= 0;
+
+            return (
+              <motion.div
+                key={p.symbol}
+                className="relative group cursor-default"
+                whileHover={{ scale: 1.01 }}
+              >
+                <div className={`absolute -inset-[1px] rounded-[2rem] opacity-20 blur-xl group-hover:opacity-50 transition-all ${isProfit ? 'bg-emerald-500' : 'bg-red-500'}`} />
+                
+                <div className="relative rounded-[1.8rem] bg-[#081210]/95 border border-white/10 backdrop-blur-3xl p-8 overflow-hidden shadow-2xl">
+                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-r from-transparent via-white/5 to-transparent -skew-x-12 translate-x-[-100%] group-hover:translate-x-[100%] duration-1000" />
+
+                  <div className="flex flex-col lg:flex-row justify-between items-center gap-6 relative z-10">
+                    <div className="flex items-center gap-5 w-full lg:w-1/4">
+                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center font-black text-xl border-2 ${isProfit ? 'border-emerald-500/40 text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.2)]' : 'border-red-500/40 text-red-400'}`}>
+                        {p.symbol.charAt(0)}
+                      </div>
+                      <div>
+                        <h3 className="text-2xl font-black uppercase tracking-tighter flex items-center gap-2">
+                          {marketData[p.symbol]?.name || p.symbol}
+                          <ArrowUpRight size={16} className={isProfit ? 'text-emerald-400' : 'text-red-400'}/>
+                        </h3>
+                        <Sparkline isProfit={isProfit} />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-8 flex-1 w-full border-x border-white/5 px-8">
+                      <div>
+                        <p className="text-white/30 text-[9px] uppercase font-black mb-1 tracking-widest">Avg Buy</p>
+                        <p className="font-bold text-lg">₹{buy.toLocaleString("en-IN")}</p>
+                      </div>
+                      <div>
+                        <p className="text-white/30 text-[9px] uppercase font-black mb-1 tracking-widest">Live Price</p>
+                        <p className="font-black text-lg text-emerald-400">₹{live.toLocaleString("en-IN")}</p>
+                      </div>
+                      <div>
+                        <p className="text-white/30 text-[9px] uppercase font-black mb-1 tracking-widest">Holdings</p>
+                        <p className="font-bold text-lg">{p.quantity} Units</p>
+                      </div>
+                      <div>
+                        <p className="text-white/30 text-[9px] uppercase font-black mb-1 tracking-widest">Returns</p>
+                        <p className={`font-black text-lg ${isProfit ? 'text-emerald-400' : 'text-red-400'}`}>
+                          {isProfit ? '▲' : '▼'} {percent.toFixed(2)}%
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <Link to={`/stock/${p.symbol}`} className="px-6 py-3 rounded-xl bg-white/5 border border-white/10 hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all text-[9px] font-black uppercase tracking-widest flex items-center gap-2">
+                        <BarChart3 size={14}/> view Details
+                      </Link>
+                      
+                      {/* Updated onClick to trigger Modal */}
+                      <button 
+                        onClick={() => setModalConfig({ type: 'Buy', symbol: p.symbol, price: live })} 
+                        className="px-5 py-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500 hover:text-black transition-all text-[9px] font-black uppercase tracking-widest"
+                      >
+                        + Add More
+                      </button>
+                      
+                      <button 
+                        onClick={() => setModalConfig({ type: 'Sell', symbol: p.symbol, price: live })} 
+                        className="px-5 py-3 rounded-xl bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500 hover:text-white transition-all text-[9px] font-black uppercase tracking-widest"
+                      >
+                        Sell
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
             );
           })}
         </div>
       </div>
-
-      {/* ----------- TRADE MODAL ----------- */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/80 z-[100] flex items-center justify-center backdrop-blur-sm">
-          <div className="bg-slate-800 p-6 rounded-xl border border-slate-700 w-96 space-y-4 shadow-2xl animate-in fade-in zoom-in duration-200">
-            <h2 className="text-xl font-bold">
-              {tradeType === "BUY" ? "Buy" : "Sell"} {marketData[selectedStock?.symbol]?.name}
-            </h2>
-
-            <div className="bg-slate-900 p-3 rounded text-center">
-                <span className="text-slate-400 text-sm">Current Market Price</span>
-                <div className="text-xl font-mono font-bold">
-                    {tradePrice === 0 ? <span className="animate-pulse">Loading...</span> : `₹${tradePrice.toFixed(2)}`}
-                </div>
-            </div>
-
-            <div>
-              <label className="text-sm text-slate-400">Quantity</label>
-              <input
-                type="number"
-                min="1"
-                value={quantity}
-                onChange={(e) => setQuantity(parseInt(e.target.value || 1))}
-                className="mt-1 w-full bg-slate-700 border border-slate-600 rounded p-2 outline-none focus:border-blue-500 transition"
-              />
-            </div>
-
-            <div className="flex justify-between pt-3 gap-3">
-              <button
-                className="flex-1 px-4 py-2 rounded bg-slate-700 hover:bg-slate-600 font-medium"
-                onClick={() => setShowModal(false)}
-              >
-                Cancel
-              </button>
-
-              <button
-                disabled={tradePrice === 0}
-                className={`flex-1 px-4 py-2 rounded font-bold ${
-                    tradePrice === 0 ? "bg-slate-600 cursor-not-allowed" :
-                  tradeType === "BUY"
-                    ? "bg-green-600 hover:bg-green-700"
-                    : "bg-red-600 hover:bg-red-700"
-                }`}
-                onClick={handleConfirmTrade}
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

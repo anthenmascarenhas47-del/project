@@ -28,10 +28,8 @@ export default function CandleChart({ symbol, selectedInterval = "1d", onInterva
       width: containerRef.current.clientWidth,
       height: 450,
       layout: {
-        background: { color: "transparent" },
+        background: { color: "transparent" }, // fully transparent so card bg shows
         textColor: "#94a3b8",
-        // Disable TradingView attribution logo
-        attributionLogo: false,
       },
       grid: {
         vertLines: { color: "#1e293b" },
@@ -45,6 +43,25 @@ export default function CandleChart({ symbol, selectedInterval = "1d", onInterva
       timeScale: {
         secondsVisible: false,
         borderColor: "#1e293b",
+      },
+      watermark: {
+        visible: false,
+        fontSize: 0,
+        color: 'rgba(0,0,0,0)',
+        text: '',
+      },
+      localization: {
+        locale: 'en',
+      },
+      rightPriceScale: {
+        scaleMargins: { top: 0.1, bottom: 0.1 },
+        borderVisible: false,
+      },
+      leftPriceScale: {
+        visible: false,
+      },
+      attribution: {
+        visible: false,
       },
     });
 
@@ -64,7 +81,7 @@ export default function CandleChart({ symbol, selectedInterval = "1d", onInterva
     });
 
     const ema21Series = chart.addLineSeries({
-      color: "#60a5fa",
+      color: "#10b981",
       lineWidth: 1,
     });
 
@@ -123,7 +140,7 @@ export default function CandleChart({ symbol, selectedInterval = "1d", onInterva
   if (!isNaN(support)) {
     supportLineRef.current = candleSeries.createPriceLine({
       price: support,
-      color: "#60a5fa",
+      color: "#10b981",
       lineWidth: 1,
       lineStyle: 2,
       axisLabelVisible: true,
@@ -169,7 +186,7 @@ export default function CandleChart({ symbol, selectedInterval = "1d", onInterva
   }, [symbol, selectedInterval]);
 
   return (
-    <div className="p-4 rounded bg-slate-800">
+    <div className="p-4 rounded" style={{background: 'transparent'}}>
       <div className="flex justify-end mb-2">
         <select
           value={selectedInterval}

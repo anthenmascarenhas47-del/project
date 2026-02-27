@@ -6,7 +6,7 @@ import pandas as pd
 from xgboost import XGBClassifier
 from companies import COMPANIES
 import ta
-from chatbot import ask_local_ai
+from chatbot import ask_local_ai, get_buy_sell_recommendation
 from pydantic import BaseModel
 
 # ================= APP ================= #
@@ -499,6 +499,7 @@ async def chat(req: ChatRequest):
             break
 
     context = ""
+    analysis = None
     if matched:
         try:
             analysis = await analyze(matched)
@@ -527,4 +528,14 @@ Do not give financial advice disclaimers.
 """
 
     reply = ask_local_ai(prompt)
+    
+    # Add buy/sell recommendation if analysis exists and probability is extreme
+    recommendation = ""
+    if analysis:
+        recommendation = get_buy_sell_recommendation(analysis)
+    
+    # Combine chatbot response with recommendation if available
+    if recommendation:
+        reply = recommendation + "\n\n" + reply
+    
     return {"reply": reply}
